@@ -9,8 +9,11 @@ function cn(...inputs: Parameters<typeof clsx>) {
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "info";
 
 interface BadgeProps {
+  /** Semantic colour pairing. Every variant is contrast-audited (see below). */
   variant?: BadgeVariant;
+  /** Short label text — keep it to one or two words so the pill stays compact. */
   children: React.ReactNode;
+  /** Extra Tailwind classes merged after the variant classes. */
   className?: string;
 }
 
@@ -32,6 +35,16 @@ const variantClasses: Record<BadgeVariant, string> = {
  * @example
  * <Badge variant="success">Passed</Badge>
  * <Badge variant="danger">Over Budget</Badge>
+ *
+ * @accessibility
+ * - Colour is never the only signal: the text label carries the meaning, and
+ *   every variant pairing is audited for ≥ 4.5:1 contrast on its tinted
+ *   background (WEB-38 / #492).
+ * - The label is plain text inside a `<span>`, so it is read as part of the
+ *   surrounding sentence — do not use it as the sole status announcement for
+ *   dynamic updates; pair with `LiveStatus` / `LiveAlert`.
+ *
+ * @since 0.1.0
  */
 export function Badge({ variant = "default", children, className }: BadgeProps) {
   return (

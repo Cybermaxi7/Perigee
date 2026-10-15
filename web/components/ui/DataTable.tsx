@@ -4,12 +4,24 @@
  * DataTable — reusable table component with sorting, client-side filtering,
  * and pagination. (WEB-33)
  *
- * Usage:
- *   const columns: ColumnDef<MyRow>[] = [
- *     { key: 'name', header: 'Name', sortable: true },
- *     { key: 'value', header: 'Value', sortable: true, align: 'right' },
- *   ];
- *   <DataTable columns={columns} data={rows} pageSize={10} />
+ * @example
+ * const columns: ColumnDef<MyRow>[] = [
+ *   { key: 'name', header: 'Name', sortable: true },
+ *   { key: 'value', header: 'Value', sortable: true, align: 'right' },
+ * ];
+ * <DataTable columns={columns} data={rows} pageSize={10} />
+ *
+ * @accessibility
+ * - The filter input is labelled by a visually hidden `<label>` **and** an
+ *   `aria-label`, so it is reachable both by visible text and by name.
+ * - Sortable headers are real `<button>` elements inside `<th scope="col">`,
+ *   and the sorted column exposes `aria-sort` (`ascending` / `descending`).
+ * - Pagination controls carry explicit `aria-label`s ("First page", "Next
+ *   page", …) and use `disabled`, so the current position is announced.
+ * - The empty state renders inside a single full-width cell, which keeps the
+ *   table structure valid when there are no rows.
+ *
+ * @since 0.1.0
  */
 
 import React, { useMemo, useState, useId } from 'react';

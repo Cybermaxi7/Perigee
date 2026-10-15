@@ -44,9 +44,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24 matches the version the web app is developed against. It also
+      # matters for tests: the web test script passes `**` globs to
+      # `node --test`, and only Node >= 22 expands those patterns itself.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -58,6 +61,11 @@ jobs:
 
       - name: Run the test suite
         run: npm test
+        # Note: `npm test` relies on `**` glob expansion in `node --test`.
+        # On Node <= 20 only `__tests__/migration/appRouter.test.cjs` matched
+        # and the run aborted on the first unresolved pattern — that is a
+        # pre-existing script issue, unrelated to the docs work.
+        continue-on-error: false
 
       - name: Upload the docs site
         uses: actions/upload-artifact@v4
@@ -88,7 +96,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: web/package-lock.json
 

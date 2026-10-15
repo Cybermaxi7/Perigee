@@ -91,4 +91,55 @@
   --font-weight-semibold: 600;
 
   --font-weight-bold: 700;
+
+  /* ==========================================
+     Line Heights
+     ========================================== */
+
+  --line-height-tight: 1.25;
+
+  --line-height-snug: 1.375;
+
+  --line-height-normal: 1.5;
+
+  --line-height-relaxed: 1.625;
+
+  --line-height-loose: 2;
+
+  /* ==========================================
+     Spacing (layout-scale)
+     Referenced by tailwind.config.js spacing
+     extension — `space-section` / `space-component`.
+     ========================================== */
+
+  /* Major section padding / vertical rhythm between top-level sections */
+  --space-section: 4rem;
+
+  /* Padding / gap inside a component (card body, form group, etc.) */
+  --space-component: 1.5rem;
+
+  /* ==========================================
+     Z-Index
+     ========================================== */
+
+  /* Base stacking for sticky/pinned elements (table headers, side rails) */
+  --z-sticky: 10;
+
+  /* Dropdowns, tooltips, floating UI anchored to a trigger */
+  --z-dropdown: 100;
+
+  /* Fixed navigation bars, always-visible banners */
+  --z-navbar: 200;
+
+  /* Drawers / off-canvas side panels */
+  --z-drawer: 300;
+
+  /* Modal dialogs (overlay + panel) */
+  --z-modal: 400;
+
+  /* Toast / notification stack rendered above modals */
+  --z-toast: 500;
+
+  /* Absolute top: dev-tools, command palette overlay */
+  --z-top: 600;
 }

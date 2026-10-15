@@ -3,8 +3,18 @@ import { cn } from "../../lib/utils";
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  /**
+   * Visual treatment. `"default"` is the cyan brand action; `"destructive"` is
+   * reserved for irreversible actions; `"link"` renders text-only styling.
+   */
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  /** Control height and padding. `"icon"` is a square control for a single glyph. */
   size?: "default" | "sm" | "lg" | "icon";
+  /**
+   * Accepted for Radix-style API parity but **not implemented** yet: the
+   * component always renders a `<button>`. Kept optional so callers migrating
+   * from shadcn-based snippets do not fail type checking.
+   */
   asChild?: boolean;
 }
 
@@ -24,6 +34,39 @@ const sizeStyles: Record<string, string> = {
   icon: "h-10 w-10",
 };
 
+/**
+ * Primary action control for the Perigee component library.
+ *
+ * Renders a native `<button>` and forwards every unhandled prop to it, so
+ * `type`, `disabled`, `aria-*`, and event handlers behave exactly as they would
+ * on a plain HTML button. Use `variant` to express emphasis and `size` for
+ * density; keep a single `default` button per view for a clear primary action.
+ *
+ * Replaces the legacy `components/common/Button` (`CommonButton`), whose
+ * `primary` variant maps onto `variant="default"`. See the
+ * [migration guide](./migrations.md) for the full mapping.
+ *
+ * @example
+ * // Primary call to action
+ * <Button onClick={confirmRotation}>Confirm rotation</Button>
+ *
+ * @example
+ * // Lower-emphasis destructive action
+ * <Button variant="destructive" size="sm">Remove vault</Button>
+ *
+ * @accessibility
+ * - Renders a real `<button>` whose default `type` is `button`, so keyboard
+ *   activation (Enter / Space) works without extra handlers.
+ * - Icon-only controls (`size="icon"`) have no text content: always pass an
+ *   accessible name (`aria-label` / `aria-labelledby`) and mark the glyph
+ *   `aria-hidden`.
+ * - Focus is visible via `focus-visible:ring-2`; the ring must not be removed.
+ * - `disabled` uses the native attribute, so the control leaves the tab order
+ *   and is announced as unavailable. For a loading state that must stay
+ *   focusable, combine `aria-busy` with `components/ui/Spinner` instead.
+ *
+ * @since 0.1.0
+ */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "default", size = "default", asChild: _asChild = false, ...props }, ref) => {
     return (

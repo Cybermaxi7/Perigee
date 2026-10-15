@@ -75,9 +75,18 @@ const labelSizeClasses: Record<SpinnerSize, string> = {
  *
  * // Accessible (announces to screen readers)
  * <Spinner size="md" label="Loading vault data…" />
+ * *   // Custom color with label below the ring
+ *   <Spinner size="lg" color="white" label="Connecting…" />
  *
- * // Custom color with label below the ring
- * <Spinner size="lg" color="white" label="Connecting…" />
+ * @accessibility
+ * - Without `label` the ring is `aria-hidden="true"`, which is correct inside a
+ *   button that already has a name ("Saving…").
+ * - With `label` the ring becomes `role="status"`, which announces politely;
+ *   for failures that must interrupt, use `LiveAlert` instead.
+ * - The CSS animation is disabled by the global `prefers-reduced-motion` rule,
+ *   so the ring must never be the only progress signal — pair it with text.
+ *
+ * @since 0.1.0
  */
 export function Spinner({
   size = "md",

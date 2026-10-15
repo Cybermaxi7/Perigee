@@ -17,8 +17,8 @@ export const LIBRARY = {
   docsDir: 'docs/components',
   /** Where the generated static site lives, relative to `web/`. */
   siteDir: 'public/component-docs',
-  /** Markdown files GitHub renders for the repo; mirrored by the docs site. */
-  docsUrl: 'https://github.com/Yinklekay/Perigee/tree/main/web/docs/components',
+  /** Canonical repo location of the generated markdown, linked from the index. */
+  docsUrl: 'https://github.com/OdyxeeeLabs/Perigee/tree/main/web/docs/components',
 };
 
 /** Grouping used by the site nav and the generated index. Order matters. */

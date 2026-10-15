@@ -137,7 +137,7 @@ These docs are versioned with the web app: this page describes v0.1.0, matching 
 
 ## Maintaining these docs
 
-Add the component to `scripts/docs/registry.mjs`, write JSDoc on the component and its props interface, then run `npm run docs:build`.
+Add the component to `scripts/docs/registry.mjs`, write JSDoc on the component and its props interface, then run `npm run docs:build`. The generated files live in [`web/docs/components`](https://github.com/OdyxeeeLabs/Perigee/tree/main/web/docs/components).
 
 | Want to document | Write |
 | --- | --- |

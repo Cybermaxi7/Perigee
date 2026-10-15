@@ -313,7 +313,9 @@ export function renderIndexPage(pages, ctx) {
 
   lines.push(heading(2, 'Maintaining these docs'), '');
   lines.push(
-    'Add the component to `scripts/docs/registry.mjs`, write JSDoc on the component and its props interface, then run `npm run docs:build`.',
+    'Add the component to `scripts/docs/registry.mjs`, write JSDoc on the component and its props interface, then run `npm run docs:build`. The generated files live in [`web/docs/components`](' +
+      ctx.library.docsUrl +
+      ').',
     '',
     '| Want to document | Write |',
     '| --- | --- |',

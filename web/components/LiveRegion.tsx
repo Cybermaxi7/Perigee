@@ -34,6 +34,14 @@ import React from "react";
  * existing visual indicators without any layout change.
  */
 
+/**
+ * Polite live region for progress and completion updates.
+ *
+ * @example
+ * <LiveStatus message={analysisComplete ? 'Analysis complete.' : ''} />
+ *
+ * @since 0.1.0
+ */
 export interface LiveStatusProps {
   /** The current status message. Rendered inside the region; empty = silent. */
   message: string;
@@ -61,6 +69,21 @@ export function LiveStatus({ message, label, "data-testid": testId }: LiveStatus
   );
 }
 
+/**
+ * Assertive live region for failures the user must act on.
+ *
+ * @example
+ * <LiveAlert message={error ? `Analysis failed: ${error}` : ''} />
+ *
+ * @accessibility
+ * - Renders `role="alert"` with `aria-live="assertive"` and
+ *   `aria-atomic="true"`, so the whole message is re-announced on every
+ *   change. Reserve it for errors: assertive announcements interrupt the user.
+ * - Keep the component mounted and change only `message`; a region that mounts
+ *   together with its text is frequently not announced.
+ *
+ * @since 0.1.0
+ */
 export interface LiveAlertProps {
   /** The alert message. Rendered inside the region; empty = silent. */
   message: string;

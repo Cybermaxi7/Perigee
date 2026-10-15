@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
-    "test": "node --test ./__tests__/**/*.test.cjs ./lib/**/*.test.cjs ./components/**/*.test.cjs"
+    "test": "node --test ./__tests__/**/*.test.cjs ./lib/**/*.test.cjs ./components/**/*.test.cjs",
+    "docs:build": "node scripts/docs/generate.mjs",
+    "docs:check": "node scripts/docs/generate.mjs --check",
+    "docs:release": "node scripts/docs/generate.mjs --release",
+    "docs:serve": "node scripts/docs/serve.mjs"
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",

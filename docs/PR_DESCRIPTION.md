@@ -187,6 +187,7 @@ All commands run inside `web/`.
 
 | Check | Command | Result |
 | --- | --- | --- |
+| **CI (GitHub Actions)** | `Component Library Docs` run 38768125648 | **✓ success** — `docs:check`, full test suite, `component-docs-site` artifact |
 | Tests | `npm test` | **155 pass, 0 fail** (62 new) |
 | Docs in sync | `npm run docs:build -- --check` / `npm run docs:check` | **exit 0** |
 | Docs build | `npm run docs:build` | 7 pages / 13 exports from source |
@@ -201,9 +202,10 @@ All commands run inside `web/`.
 
 These were reproduced on a pristine `HEAD` checkout (`git worktree` of
 `main` 4834574, same `node_modules`) before any of this PR's changes were
-applied. Fixing them belongs to the App Router migration (#…/`MIGRATION.md`)
-and the eslint config, not to the docs issue — but they are the reason a
-green CI run for this PR will still show red jobs until they are addressed:
+applied. Fixing them belongs to the App Router migration (#…/`MIGRATION.md`),
+the eslint config and the test script, not to the docs issue — but they are why
+`npm run build` / `npm run lint` / `npx tsc --noEmit` are still red on `main`, and
+why they are not part of this PR's acceptance:
 
 1. **`npm run build` fails with 3 Turbopack errors** (identical on pristine
    `main`):
@@ -217,7 +219,14 @@ green CI run for this PR will still show red jobs until they are addressed:
    (`lib/i18n.ts`, `lib/vault-metadata.ts`, `pages/index.tsx`, `pages/_app.tsx`,
    `app/[vaults]/…`, `playwright.config.ts`). None of the files this PR edits
    appear in the output.
-3. **`npm run lint` reports 296 problems (281 errors, 15 warnings)** — 273 of
+3. **`npm test` aborts on Node ≤ 20.** The web `test` script passes `**`
+   patterns directly to `node --test`, and only Node ≥ 22 expands those itself:
+   on Node 20 the run dies with
+   `Could not find '…/web/lib/**/*.test.cjs'` before executing anything (and
+   only `__tests__/migration/appRouter.test.cjs` ever matched). The docs CI job
+   therefore pins `node-version: '24'`, the version the app is developed
+   against. Changing the shared script is a separate, cross-cutting fix.
+4. **`npm run lint` reports 296 problems (281 errors, 15 warnings)** — 273 of
    them are `Definition for rule '@typescript-eslint/…' was not found` on
    *every* file, because `.eslintrc.json` enables TypeScript rules without
    `@typescript-eslint/eslint-plugin` installed. The remaining 8 are real
@@ -227,6 +236,15 @@ green CI run for this PR will still show red jobs until they are addressed:
    artifacts, which returns the count to its previous level.
 
 ---
+
+## PR hygiene
+
+- Branch: `docs/component-library-docs-709` → `main`
+- 60 files, +9,267 / −9 (≈1,000 lines of generated markdown, \~2,600 lines of
+generator + tests, 185 lines of JSDoc-only changes to components, 26 generated
+site files)
+- Two commits: the feature, then the CI Node pin (see pre-existing issue 3)
+- No new dependencies; `package-lock.json` untouched
 
 ## Usage after merge
 

@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test ./__tests__/**/*.test.cjs ./lib/**/*.test.cjs ./components/**/*.test.cjs"
     "test": "node --test ./__tests__/**/*.test.cjs ./lib/**/*.test.cjs ./components/**/*.test.cjs",
     "docs:build": "node scripts/docs/generate.mjs",
     "docs:check": "node scripts/docs/generate.mjs --check",

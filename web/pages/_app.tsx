@@ -114,3 +114,6 @@ export default function App({ Component, pageProps }: AppProps) {
     </div>
   );
 }
+
+// Core Web Vitals (#693): Next.js invokes this for every reported metric.
+export { reportWebVitals } from "../lib/webVitals";

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { DataTable, type ColumnDef } from '../ui/DataTable';
 import { strategyPhases, type StrategyPhase } from './strategyPhases';
 
@@ -23,7 +24,7 @@ const columns: ColumnDef<StrategyPhase>[] = [
   },
 ];
 
-export function StrategyPhaseTable() {
+function StrategyPhaseTableImpl() {
   return (
     <DataTable<StrategyPhase>
       columns={columns}
@@ -37,3 +38,6 @@ export function StrategyPhaseTable() {
     />
   );
 }
+
+/** Memoised (#692): takes no props, so it never needs to re-render with its parent. */
+export const StrategyPhaseTable = memo(StrategyPhaseTableImpl);

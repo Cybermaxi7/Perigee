@@ -88,7 +88,7 @@ const labelSizeClasses: Record<SpinnerSize, string> = {
  *
  * @since 0.1.0
  */
-export function Spinner({
+function SpinnerImpl({
   size = "md",
   color = "primary",
   label,
@@ -126,3 +126,6 @@ export function Spinner({
     </span>
   );
 }
+
+/** Memoised (#692): re-renders only when props change. */
+export const Spinner = React.memo(SpinnerImpl);

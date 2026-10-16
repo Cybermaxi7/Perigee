@@ -73,7 +73,7 @@ const columns: ColumnDef<GasGolfingSuggestion>[] = [
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function GasGolfingSuggestionsTable({
+function GasGolfingSuggestionsTableImpl({
   suggestions,
 }: {
   suggestions: GasGolfingSuggestion[];
@@ -99,3 +99,6 @@ export function GasGolfingSuggestionsTable({
     />
   );
 }
+
+/** Memoised (#692): re-renders only when props change. */
+export const GasGolfingSuggestionsTable = React.memo(GasGolfingSuggestionsTableImpl);

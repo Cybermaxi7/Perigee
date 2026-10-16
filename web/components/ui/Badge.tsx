@@ -46,7 +46,7 @@ const variantClasses: Record<BadgeVariant, string> = {
  *
  * @since 0.1.0
  */
-export function Badge({ variant = "default", children, className }: BadgeProps) {
+function BadgeImpl({ variant = "default", children, className }: BadgeProps) {
   return (
     <span
       className={cn(
@@ -59,3 +59,6 @@ export function Badge({ variant = "default", children, className }: BadgeProps) 
     </span>
   );
 }
+
+/** Memoised (#692): re-renders only when props change. */
+export const Badge = React.memo(BadgeImpl);

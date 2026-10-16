@@ -4,6 +4,9 @@ const withNextIntl = createNextIntlPlugin('./lib/i18n.ts');
 
 const nextConfig = {
   reactStrictMode: true,
+  // Gzip responses from the Next server (issue #695). Brotli is applied by the
+  // reverse proxy / CDN, see docs/compression.md.
+  compress: true,
   transpilePackages: ["@creit.tech/stellar-wallets-kit"],
   turbopack: {},
 

@@ -294,7 +294,7 @@ function fmtInstr(n: number): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ResourceHeatmap({ resourceCost, callGraph }: ResourceHeatmapProps) {
+function ResourceHeatmapImpl({ resourceCost, callGraph }: ResourceHeatmapProps) {
   type Tab = 'gauges' | 'ram' | 'hotspot' | 'footprint';
   const [activeTab, setActiveTab] = useState<Tab>('gauges');
   const [hoveredCellId, setHoveredCellId] = useState<string | null>(null);
@@ -1438,3 +1438,6 @@ export function ResourceHeatmap({ resourceCost, callGraph }: ResourceHeatmapProp
     </div>
   );
 }
+
+/** Memoised (#692): re-renders only when props change. */
+export const ResourceHeatmap = React.memo(ResourceHeatmapImpl);

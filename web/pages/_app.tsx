@@ -5,6 +5,7 @@ import { Inter } from "next/font/google";
 import { WalletProvider } from "../context/WalletContext";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Analytics } from "../components/Analytics";
+import { ServiceWorkerManager } from "../components/ServiceWorkerManager";
 import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { RpcFallbackBanner } from "../components/RpcFallbackBanner";
 import { NextIntlClientProvider } from "next-intl";
@@ -79,6 +80,7 @@ export default function App({ Component, pageProps }: AppProps) {
                 <ErrorBoundary>
                   <Component {...pageProps} />
                   <Analytics />
+                  <ServiceWorkerManager />
                 </ErrorBoundary>
               </RpcFallbackBanner>
             </WalletProvider>

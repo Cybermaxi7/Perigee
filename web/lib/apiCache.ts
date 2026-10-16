@@ -15,6 +15,7 @@
  */
 
 import { API_URL } from "./api";
+import { dedupedFetch, resetDedupeState, ttlForPath } from "./requestDedupe";
 
 /** Default time-to-live for cached API responses (seconds). */
 const DEFAULT_REVALIDATE = 60;
@@ -164,6 +165,8 @@ export const apiCache = new TtlLruCache();
 /** Manually invalidate every entry in the shared in-memory cache. */
 export function clearCache(): void {
   apiCache.clear();
+  // Also forget recently settled requests so the next read really refetches.
+  resetDedupeState();
 }
 
 /**
@@ -194,7 +197,7 @@ export async function cachedGet<T>(
   {
     revalidate = DEFAULT_REVALIDATE,
     tags = [],
-    ttlMs = DEFAULT_TTL_MS,
+    ttlMs = ttlForPath(path, DEFAULT_TTL_MS),
     ...init
   }: CachedFetchOptions = {},
 ): Promise<T> {
@@ -209,27 +212,36 @@ export async function cachedGet<T>(
     }
   }
 
-  const res = await fetch(url, {
-    ...init,
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers as Record<string, string> | undefined),
-    },
-    next: {
-      revalidate: revalidate === 0 ? undefined : revalidate,
-      tags: tags.length > 0 ? tags : undefined,
-    },
-    // When revalidate === 0 the caller wants no caching at all
-    cache: revalidate === 0 ? "no-store" : undefined,
-  });
+  // Concurrent identical GETs (and repeats within the deduping interval) share
+  // one network request (issue #690). `revalidate: 0` callers want a fresh
+  // read every time, so they bypass deduplication.
+  const load = async (): Promise<T> => {
+    const res = await fetch(url, {
+      ...init,
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(init.headers as Record<string, string> | undefined),
+      },
+      next: {
+        revalidate: revalidate === 0 ? undefined : revalidate,
+        tags: tags.length > 0 ? tags : undefined,
+      },
+      // When revalidate === 0 the caller wants no caching at all
+      cache: revalidate === 0 ? "no-store" : undefined,
+    });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${res.status}: ${body}`);
-  }
+    if (!res.ok) {
+      const body = await res.text().catch(() => res.statusText);
+      throw new Error(`API ${res.status}: ${body}`);
+    }
 
-  const data = (await res.json()) as T;
+    const data = (await res.json()) as T;
+
+    return data;
+  };
+
+  const data = useMemoryCache ? await dedupedFetch<T>(key, load) : await load();
 
   if (useMemoryCache) {
     apiCache.set(key, data, ttlMs);

@@ -45,8 +45,9 @@ export interface SettingsCommand {
 export interface ActionCommand {
   kind: "action";
   id: string;
-  /** `actionId` is passed back to the palette's `onRunAction` callback. */
-  actionId: "copy-wallet-address" | "create-vault";
+  /** `actionId` is passed back to the palette's `onRunAction` callback. */ actionId:
+    | "copy-wallet-address"
+    | "create-vault";
   labelKey: string;
   keywords: string[];
 }

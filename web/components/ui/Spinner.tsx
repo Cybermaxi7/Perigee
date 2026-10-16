@@ -44,9 +44,9 @@ const sizeClasses: Record<SpinnerSize, string> = {
 
 const colorClasses: Record<SpinnerColor, string> = {
   primary: "border-[#33C5E0]/20 border-t-[#33C5E0]",
-  white:   "border-white/20   border-t-white",
-  muted:   "border-slate-600  border-t-slate-300",
-  danger:  "border-rose-800   border-t-rose-400",
+  white: "border-white/20   border-t-white",
+  muted: "border-slate-600  border-t-slate-300",
+  danger: "border-rose-800   border-t-rose-400",
   success: "border-emerald-800 border-t-emerald-400",
 };
 

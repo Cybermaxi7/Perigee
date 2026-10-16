@@ -5,10 +5,12 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Analytics } from "../components/Analytics";
 import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { RpcFallbackBanner } from "../components/RpcFallbackBanner";
+import { CommandPalette } from "../components/CommandPalette";
 import { NextIntlClientProvider } from "next-intl";
 import { API_URL } from "../lib/api";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { useCommandPalette } from "../hooks/useCommandPalette";
 import { FeatureFlagProvider } from "../features/feature-flags";
 
 /**
@@ -32,6 +34,7 @@ async function initAxe() {
 }
 
 export default function App({ Component, pageProps }: AppProps) {
+  const { isOpen, close, commands } = useCommandPalette();
   useEffect(() => {
     initAxe().catch(() => {
       // axe-core is a dev-only optional dependency; swallow import errors
@@ -53,6 +56,8 @@ export default function App({ Component, pageProps }: AppProps) {
           <NetworkStatusBanner apiUrl={API_URL} />
           {/* Graceful RPC fallback — shown when the backend is unreachable (#115) */}
           <RpcFallbackBanner apiUrl={API_URL} />
+          {/* Global command palette — ⌘K / Ctrl+K — resolves #680 */}
+          <CommandPalette commands={commands} isOpen={isOpen} onClose={close} />
           <ErrorBoundary>
             <Component {...pageProps} />
             <Analytics />

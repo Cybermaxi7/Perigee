@@ -282,5 +282,8 @@
   "a11y.resultReady": "Result ready: {outcome}",
   "a11y.uploadScanning": "Scanning contract",
   "a11y.uploadSuccess": "Contract uploaded successfully",
-  "a11y.uploadRejected": "File rejected"
+  "a11y.uploadRejected": "File rejected",
+  "serviceWorker.updateAvailable": "A new version of Perigee is available.",
+  "serviceWorker.reload": "Reload",
+  "serviceWorker.queued": "You are offline. Your changes will be sent when the connection returns."
 }

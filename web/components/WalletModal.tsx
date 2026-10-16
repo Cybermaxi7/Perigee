@@ -10,6 +10,7 @@ import { logger } from "../lib/logger";
 import { trackTelemetryEvent } from "../lib/telemetry";
 import { useTranslations } from "next-intl";
 import { Spinner } from "./ui/Spinner";
+import { blurDataUri } from "../lib/imagePlaceholder";
 
 export function WalletModal() {
   const t = useTranslations("walletModal");
@@ -148,6 +149,9 @@ export function WalletModal() {
                             alt={wallet.name}
                             width={20}
                             height={20}
+                            sizes="20px"
+                            placeholder="blur"
+                            blurDataURL={blurDataUri(20, 20)}
                             className="object-contain"
                           />
                         </div>

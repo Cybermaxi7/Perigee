@@ -1,452 +1,274 @@
 "use client";
 
-import {
+import React, {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { Command } from "cmdk";
 import { useRouter } from "next/router";
-import { Search, X, ArrowRight, Clock, Zap } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Search, FileText, Settings2, Zap } from "lucide-react";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type CommandCategory =
-  | "navigation"
-  | "vault"
-  | "action"
-  | "settings";
-
-export interface Command {
-  id: string;
-  label: string;
-  description?: string;
-  category: CommandCategory;
-  icon?: React.ReactNode;
-  shortcut?: string[];
-  /** Called when the user selects this command. */
-  onSelect: () => void;
-  /** Keywords used in fuzzy matching in addition to `label`. */
-  keywords?: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const CATEGORY_LABEL: Record<CommandCategory, string> = {
-  navigation: "Navigation",
-  vault: "Vaults",
-  action: "Actions",
-  settings: "Settings",
-};
-
-const CATEGORY_ORDER: CommandCategory[] = [
-  "navigation",
-  "vault",
-  "action",
-  "settings",
-];
-
-/** Simple fuzzy match — true when every character in `query` appears in
- *  `target` in order (case-insensitive). */
-function fuzzyMatch(target: string, query: string): boolean {
-  if (!query) return true;
-  const t = target.toLowerCase();
-  const q = query.toLowerCase();
-  let ti = 0;
-  for (let qi = 0; qi < q.length; qi++) {
-    ti = t.indexOf(q[qi], ti);
-    if (ti === -1) return false;
-    ti++;
-  }
-  return true;
-}
-
-function matchesCommand(cmd: Command, query: string): boolean {
-  if (!query) return true;
-  const haystack = [cmd.label, cmd.description ?? "", ...(cmd.keywords ?? [])].join(
-    " ",
-  );
-  return fuzzyMatch(haystack, query);
-}
-
-const RECENT_COMMANDS_KEY = "perigee:command-palette:recent";
-const MAX_RECENT = 5;
-
-function loadRecentIds(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_COMMANDS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveRecentId(id: string) {
-  try {
-    const existing = loadRecentIds().filter((r) => r !== id);
-    localStorage.setItem(
-      RECENT_COMMANDS_KEY,
-      JSON.stringify([id, ...existing].slice(0, MAX_RECENT)),
-    );
-  } catch {
-    // localStorage unavailable — swallow silently
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function KbdShortcut({ keys }: { keys: string[] }) {
-  return (
-    <span className="flex items-center gap-0.5">
-      {keys.map((k) => (
-        <kbd
-          key={k}
-          className="
-            rounded
-            border
-            border-slate-600
-            bg-slate-800
-            px-1.5
-            py-0.5
-            font-mono
-            text-[10px]
-            text-slate-400
-          "
-        >
-          {k}
-        </kbd>
-      ))}
-    </span>
-  );
-}
-
-interface CommandItemProps {
-  command: Command;
-  isActive: boolean;
-  onSelect: (cmd: Command) => void;
-  onMouseEnter: () => void;
-}
-
-function CommandItem({
-  command,
-  isActive,
-  onSelect,
-  onMouseEnter,
-}: CommandItemProps) {
-  return (
-    <div
-      id={`cmd-item-${command.id}`}
-      role="option"
-      aria-selected={isActive}
-      onMouseEnter={onMouseEnter}
-      onClick={() => onSelect(command)}
-      className={`
-        flex
-        cursor-pointer
-        items-center
-        gap-3
-        rounded-lg
-        px-3
-        py-2.5
-        transition-colors
-        ${isActive ? "bg-sky-500/20 text-sky-300" : "text-slate-300 hover:bg-slate-800"}
-      `}
-    >
-      {/* Icon */}
-      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-slate-800 text-slate-400">
-        {command.icon ?? <ArrowRight size={14} />}
-      </span>
-
-      {/* Label + description */}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">
-          {command.label}
-        </span>
-        {command.description && (
-          <span className="block truncate text-xs text-slate-500">
-            {command.description}
-          </span>
-        )}
-      </span>
-
-      {/* Keyboard shortcut */}
-      {command.shortcut && <KbdShortcut keys={command.shortcut} />}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
-export interface CommandPaletteProps {
-  /** All available commands. Build this list in the parent with useMemo. */
-  commands: Command[];
-  isOpen: boolean;
-  onClose: () => void;
-}
+import {
+  ACTION_COMMANDS,
+  NAVIGATION_COMMANDS,
+  SETTINGS_COMMANDS,
+  filterCommands,
+  groupCommands,
+  groupHeadingKey,
+  type CommandEntry,
+} from "../lib/commandRegistry";
+import { trackTelemetryEvent } from "../lib/telemetry";
+import { useWalletStore } from "../context/WalletContext";
 
 /**
- * Global command palette — activated with ⌘K / Ctrl+K.
+ * Global command palette (WEB-52 / #185).
  *
- * Features:
- * - Fuzzy search across label, description, and keywords
- * - Keyboard navigation (↑↓ to move, Enter to select, Esc to close)
- * - Categorised results with section headings
- * - Recent commands surfaced when query is empty
- * - Persists recent selections to localStorage
+ * Power users can jump to any vault, settings page, or run quick actions
+ * from the keyboard. Open with ⌘K / Ctrl+K or the `/` key; Escape or
+ * backdrop click closes it. Focus is trapped by cmdk's built-in dialog
+ * behaviour and the trigger returns focus on close (WCAG 2.1 dialog
+ * pattern, mirroring `NavDrawer.tsx`).
  *
- * Resolves #680 — Implement command palette.
+ * Vault entries are dynamic: every vault known to the registry is
+ * addressable via `/vault/<id>`, and typing a name or id filters to it.
  */
-export function CommandPalette({
-  commands,
-  isOpen,
-  onClose,
-}: CommandPaletteProps) {
+
+const OpenIcon = Search;
+const NavIcon = FileText;
+const SettingsIcon = Settings2;
+const ActionIcon = Zap;
+
+const GROUP_ICON = {
+  navigation: NavIcon,
+  vaults: NavIcon,
+  settings: SettingsIcon,
+  actions: ActionIcon,
+} as const;
+
+export interface CommandPaletteProps {
+  /** Controlled open state (used by tests and the trigger button). */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+/** Stable a11y ids for the dialog pattern. */
+const TITLE_ID = "command-palette-title";
+const TRIGGER_ID = "command-palette-trigger";
+
+export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+  const t = useTranslations();
+  const router = useRouter();
+  const wallet = useWalletStore((s) => ({ address: s.address }));
+
   const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [recentIds, setRecentIds] = useState<string[]>([]);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  // Load recent commands on open
+  // Remember what had focus before opening so we can restore it on close.
   useEffect(() => {
-    if (isOpen) {
-      setRecentIds(loadRecentIds());
+    if (open) {
+      restoreFocusRef.current =
+        document.activeElement as HTMLElement | null;
       setQuery("");
-      setActiveIndex(0);
-      // Autofocus the input
-      requestAnimationFrame(() => inputRef.current?.focus());
+    } else if (restoreFocusRef.current) {
+      restoreFocusRef.current.focus?.();
+      restoreFocusRef.current = null;
     }
-  }, [isOpen]);
+  }, [open]);
 
-  // Close on Escape, navigate with arrows, select with Enter
+  // ⌘K / Ctrl+K toggles the palette; `/` opens it (when not typing in an
+  // input/textarea/contenteditable), Escape closes.
   useEffect(() => {
-    if (!isOpen) return;
-
-    function handleKeyDown(e: KeyboardEvent) {
-      switch (e.key) {
-        case "Escape":
-          e.preventDefault();
-          onClose();
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          setActiveIndex((i) => Math.min(i + 1, flatResults.length - 1));
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setActiveIndex((i) => Math.max(i - 1, 0));
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (flatResults[activeIndex]) handleSelect(flatResults[activeIndex]);
-          break;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        onOpenChange(!open);
+        return;
       }
-    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, activeIndex]);
+      if (!open && e.key === "/" && !isTypingTarget(e.target)) {
+        e.preventDefault();
+        onOpenChange(true);
+        return;
+      }
 
-  // Scroll active item into view
-  useEffect(() => {
-    const el = document.getElementById(`cmd-item-${flatResults[activeIndex]?.id}`);
-    el?.scrollIntoView({ block: "nearest" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex]);
+      if (open && e.key === "Escape") {
+        e.preventDefault();
+        onOpenChange(false);
+      }
+    };
 
-  const filtered = useMemo(() => {
-    if (!query) {
-      // Show recent commands first when no query
-      const recentCmds = recentIds
-        .map((id) => commands.find((c) => c.id === id))
-        .filter(Boolean) as Command[];
-      return recentCmds.length > 0 ? recentCmds : commands;
-    }
-    return commands.filter((c) => matchesCommand(c, query));
-  }, [query, commands, recentIds]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onOpenChange]);
 
-  // Group by category, respecting CATEGORY_ORDER
-  const grouped = useMemo(() => {
-    const map = new Map<CommandCategory, Command[]>();
-    for (const cmd of filtered) {
-      const list = map.get(cmd.category) ?? [];
-      list.push(cmd);
-      map.set(cmd.category, list);
-    }
-    return CATEGORY_ORDER.filter((cat) => map.has(cat)).map((cat) => ({
-      category: cat,
-      items: map.get(cat)!,
-    }));
-  }, [filtered]);
+  // ---------------------------------------------------------------------------
+  // Command sources
+  // ---------------------------------------------------------------------------
 
-  // Flat list for keyboard navigation
-  const flatResults = useMemo(
-    () => grouped.flatMap((g) => g.items),
-    [grouped],
+  /** Resolves the display label for an entry (translated or plain vault name). */
+  const resolveLabel = useCallback(
+    (entry: CommandEntry): string => {
+      switch (entry.kind) {
+        case "vault":
+          return entry.label;
+        case "action":
+        case "navigation":
+        case "settings":
+          return t(entry.labelKey);
+        default:
+          return "";
+      }
+    },
+    [t]
   );
+
+  const staticEntries = useMemo<CommandEntry[]>(
+    () => [...NAVIGATION_COMMANDS, ...SETTINGS_COMMANDS, ...ACTION_COMMANDS],
+    []
+  );
+
+  const handleRunAction = useCallback(
+    (actionId: string) => {
+      if (actionId === "copy-wallet-address") {
+        const address = wallet.address;
+        if (address) {
+          navigator.clipboard
+            .writeText(address)
+            .then(() => trackTelemetryEvent({ name: "palette_copy_address" }))
+            .catch(() => {
+              /* clipboard unavailable — non-fatal */
+            });
+        }
+      } else if (actionId === "create-vault") {
+        router.push("/vaults/new");
+      }
+    },
+    [wallet.address, router]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Derived list
+  // ---------------------------------------------------------------------------
+
+  const filtered = useMemo(
+    () => filterCommands(staticEntries, query, resolveLabel),
+    [staticEntries, query, resolveLabel]
+  );
+
+  const grouped = useMemo(() => groupCommands(filtered), [filtered]);
 
   const handleSelect = useCallback(
-    (cmd: Command) => {
-      saveRecentId(cmd.id);
-      setRecentIds(loadRecentIds());
-      cmd.onSelect();
-      onClose();
+    (entry: CommandEntry) => {
+      onOpenChange(false);
+      trackTelemetryEvent({ name: "palette_navigate", properties: { id: entry.id } });
+      if (entry.kind === "action") {
+        handleRunAction(entry.actionId);
+        return;
+      }
+      // Navigation, vault and settings entries all carry a route.
+      if ("route" in entry && entry.route) {
+        router.push(entry.route);
+      }
     },
-    [onClose],
+    [handleRunAction, onOpenChange, router]
   );
-
-  if (!isOpen) return null;
-
-  const showingRecent = !query && recentIds.length > 0;
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        aria-hidden="true"
-        onClick={onClose}
-      />
-
-      {/* Dialog */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
-        className="
-          fixed
-          left-1/2
-          top-[20vh]
-          z-50
-          w-full
-          max-w-xl
-          -translate-x-1/2
-          overflow-hidden
-          rounded-2xl
-          border
-          border-slate-700/60
-          bg-slate-900
-          shadow-2xl
-          shadow-black/60
-        "
+      <button
+        type="button"
+        id={TRIGGER_ID}
+        onClick={() => onOpenChange(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-300 hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
       >
-        {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-slate-700/60 px-4 py-3">
-          <Search size={16} className="flex-shrink-0 text-slate-500" />
-          <input
-            ref={inputRef}
-            id="command-palette-input"
-            type="text"
-            role="combobox"
-            aria-expanded={isOpen}
-            aria-controls="command-palette-list"
-            aria-autocomplete="list"
-            placeholder="Search commands, vaults, settings…"
+        <OpenIcon className="h-4 w-4" aria-hidden="true" />
+        <span className="hidden sm:inline">{t("palette.triggerLabel")}</span>
+        <kbd className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">
+          ⌘K
+        </kbd>
+      </button>
+
+      <Command.Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        loop
+        label={t("palette.title")}
+        className="fixed inset-0 z-50"
+        overlayClassName="fixed inset-0 z-50 bg-black/60"
+        contentClassName="fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 shadow-xl outline-none"
+      >
+        <h2 id={TITLE_ID} className="sr-only">
+          {t("palette.title")}
+        </h2>
+        <div className="flex items-center gap-2 border-b border-slate-700 px-4">
+          <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
+          <Command.Input
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setActiveIndex(0);
-            }}
-            className="
-              flex-1
-              bg-transparent
-              text-sm
-              text-slate-100
-              placeholder-slate-500
-              outline-none
-            "
+            onValueChange={setQuery}
+            placeholder={t("palette.triggerLabel")}
+            className="w-full bg-transparent py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            aria-label={t("palette.openLabel")}
           />
-          {query && (
-            <button
-              aria-label="Clear search"
-              onClick={() => setQuery("")}
-              className="text-slate-500 hover:text-slate-300"
-            >
-              <X size={14} />
-            </button>
-          )}
-          <KbdShortcut keys={["Esc"]} />
+          <kbd className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">
+            ESC
+          </kbd>
         </div>
 
-        {/* Results */}
-        <div
-          ref={listRef}
-          id="command-palette-list"
-          role="listbox"
-          aria-label="Commands"
-          className="max-h-[60vh] overflow-y-auto px-2 py-2"
-        >
-          {flatResults.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-500">
-              No results for &ldquo;{query}&rdquo;
-            </div>
-          ) : (
-            <>
-              {showingRecent && (
-                <div className="mb-1 flex items-center gap-1.5 px-2 py-1">
-                  <Clock size={11} className="text-slate-500" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    Recent
-                  </span>
-                </div>
-              )}
+        <Command.List className="max-h-80 overflow-y-auto p-2">
+          <Command.Empty className="px-3 py-6 text-center text-sm text-slate-400">
+            {t("palette.empty")}
+            {query && (
+              <span className="mt-1 block text-xs text-slate-500">
+                {t("palette.searchVaultsHint")}
+              </span>
+            )}
+          </Command.Empty>
 
-              {grouped.map(({ category, items }) => (
-                <div key={category} className="mb-2">
-                  {/* Section heading — hide when showing recent (single group) */}
-                  {!showingRecent && (
-                    <div className="mb-1 flex items-center gap-1.5 px-2 py-1">
-                      <Zap size={11} className="text-slate-500" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                        {CATEGORY_LABEL[category]}
-                      </span>
-                    </div>
-                  )}
-
-                  {items.map((cmd) => {
-                    const globalIndex = flatResults.indexOf(cmd);
-                    return (
-                      <CommandItem
-                        key={cmd.id}
-                        command={cmd}
-                        isActive={globalIndex === activeIndex}
-                        onSelect={handleSelect}
-                        onMouseEnter={() => setActiveIndex(globalIndex)}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-
-        {/* Footer hints */}
-        <div className="flex items-center gap-4 border-t border-slate-700/60 px-4 py-2 text-[10px] text-slate-500">
-          <span className="flex items-center gap-1">
-            <KbdShortcut keys={["↑", "↓"]} />
-            <span>Navigate</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <KbdShortcut keys={["↵"]} />
-            <span>Select</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <KbdShortcut keys={["Esc"]} />
-            <span>Close</span>
-          </span>
-        </div>
-      </div>
+          {grouped.map(({ group, entries }) => {
+            const Icon = GROUP_ICON[group];
+            return (
+              <Command.Group
+                key={group}
+                heading={t(groupHeadingKey(group))}
+                className="px-1 py-1 text-slate-300"
+              >
+                {entries.map((entry) => (
+                  <Command.Item
+                    key={entry.id}
+                    value={`${resolveLabel(entry)} ${entry.keywords.join(" ")}`}
+                    onSelect={() => handleSelect(entry)}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm data-[selected=true]:bg-slate-800 data-[selected=true]:text-white"
+                  >
+                    <Icon className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                    <span className="flex-1">{resolveLabel(entry)}</span>
+                    {entry.kind === "vault" && (
+                      <span className="text-xs text-slate-500">{entry.vaultId}</span>
+                    )}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            );
+          })}
+        </Command.List>
+      </Command.Dialog>
     </>
+  );
+}
+
+/** True when the event target is a text-entry element (don't hijack `/`). */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
   );
 }

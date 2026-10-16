@@ -15,13 +15,29 @@
 
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { Inter } from 'next/font/google';
 import { NetworkStatusBanner } from '@/components/NetworkStatusBanner';
 import { API_URL } from '@/lib/api';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { WalletProvider } from '@/context/WalletContext';
+import '@/styles/globals.css';
+// WEB-15 (#469): mirror the Pages Router `MotionProvider` so the App Router
+// routes also honour `prefers-reduced-motion` once migration completes.
+import { MotionProvider } from '../components/MotionProvider';
+// WEB-52 (#185): command palette. The App Router still serves no real pages
+// (pages/ router is active), but keeping the launcher mounted here means the
+// palette survives the migration without a second wiring pass.
+import { CommandPaletteLauncher } from '../components/CommandPaletteLauncher';
 
-// TODO: Move these from pages/_app.tsx during migration
-// import { ErrorBoundary } from '@/components/ErrorBoundary';
-// import { WalletProvider } from '@/context/WalletContext';
-// import '@/styles/globals.css';
+// WEB-54 (#187): self-host the Inter typeface through `next/font` instead of
+// loading it from an external stylesheet. Fonts are downloaded and preloaded
+// at build time (no FOIT, no layout shift) and exposed as the `--font-inter`
+// CSS variable consumed by the Tailwind `font-sans` stack.
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -34,17 +50,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
-        {/* TODO: Wrap with providers from pages/_app.tsx during migration:
-          <ErrorBoundary>
+        <ErrorBoundary>
+          <MotionProvider>
             <WalletProvider>
+              <CommandPaletteLauncher />
+              <NetworkStatusBanner apiUrl={API_URL} />
               {children}
             </WalletProvider>
-          </ErrorBoundary>
-        */}
-        <NetworkStatusBanner apiUrl={API_URL} />
-        {children}
+          </MotionProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

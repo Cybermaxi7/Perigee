@@ -1,17 +1,38 @@
 import type { AppProps } from "next/app";
 import "../styles/globals.css";
+import "../styles/print.css";
+import { Inter } from "next/font/google";
 import { WalletProvider } from "../context/WalletContext";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Analytics } from "../components/Analytics";
+import { ServiceWorkerManager } from "../components/ServiceWorkerManager";
 import { NetworkStatusBanner } from "../components/NetworkStatusBanner";
 import { RpcFallbackBanner } from "../components/RpcFallbackBanner";
-import { CommandPalette } from "../components/CommandPalette";
 import { NextIntlClientProvider } from "next-intl";
+import defaultMessages from "../messages/en.json";
 import { API_URL } from "../lib/api";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { useCommandPalette } from "../hooks/useCommandPalette";
 import { FeatureFlagProvider } from "../features/feature-flags";
+
+// WEB-15 (#469): enable `reducedMotion="user"` for Framer Motion across the
+// whole Pages Router tree. Every `motion.*` animation now respects the OS
+// `prefers-reduced-motion` setting, in addition to the per-component
+// `useReducedMotion()` guards already in place.
+import { MotionProvider } from "../components/MotionProvider";
+
+// WEB-52 (#185): global command palette — ⌘K / Ctrl+K / `/` opens a searchable
+// launcher for navigation, vaults, settings and quick actions.
+import { CommandPaletteLauncher } from "../components/CommandPaletteLauncher";
+
+// WEB-54 (#187): self-host the Inter typeface through `next/font`. Font files
+// are downloaded and preloaded at build time, eliminating FOIT and render
+// blocking from an external font stylesheet. `inter.className` applies the
+// generated font-family to every Pages Router route.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 /**
  * Initialize @axe-core/react in development so accessibility violations
@@ -21,10 +42,7 @@ import { FeatureFlagProvider } from "../features/feature-flags";
  * Resolves WEB-24 (#110): missing accessibility audit tooling.
  */
 async function initAxe() {
-  if (
-    typeof window !== "undefined" &&
-    process.env.NODE_ENV === "development"
-  ) {
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
     const axe = await import("@axe-core/react");
     const React = await import("react");
     const ReactDOM = await import("react-dom");
@@ -34,7 +52,6 @@ async function initAxe() {
 }
 
 export default function App({ Component, pageProps }: AppProps) {
-  const { isOpen, close, commands } = useCommandPalette();
   useEffect(() => {
     initAxe().catch(() => {
       // axe-core is a dev-only optional dependency; swallow import errors
@@ -45,25 +62,38 @@ export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
 
   return (
-    <FeatureFlagProvider>
-      <NextIntlClientProvider
-        locale={router?.locale ?? "en"}
-        messages={pageProps.messages ?? {}}
-        timeZone="UTC"
-      >
-        <WalletProvider>
-          {/* Network status and API availability (#109) */}
-          <NetworkStatusBanner apiUrl={API_URL} />
-          {/* Graceful RPC fallback — shown when the backend is unreachable (#115) */}
-          <RpcFallbackBanner apiUrl={API_URL} />
-          {/* Global command palette — ⌘K / Ctrl+K — resolves #680 */}
-          <CommandPalette commands={commands} isOpen={isOpen} onClose={close} />
-          <ErrorBoundary>
-            <Component {...pageProps} />
-            <Analytics />
-          </ErrorBoundary>
-        </WalletProvider>
-      </NextIntlClientProvider>
-    </FeatureFlagProvider>
+    <div className={inter.className}>
+      <MotionProvider>
+        <FeatureFlagProvider>
+          <NextIntlClientProvider
+            locale={router?.locale ?? "en"}
+            messages={pageProps.messages ?? defaultMessages}
+            timeZone="UTC"
+          >
+            <WalletProvider>
+              {/* Network status and API availability (#109) */}
+              <NetworkStatusBanner apiUrl={API_URL} />
+              
+              {/*
+               * Graceful RPC fallback — shown when the backend is unreachable (#115).
+               * Wraps ErrorBoundary so children can read `useRpcFallback()` to display
+               * stale-data badges on individual views.
+               */}
+              <RpcFallbackBanner apiUrl={API_URL}>
+                <ErrorBoundary>
+                  <Component {...pageProps} />
+                  <CommandPaletteLauncher />
+                  <Analytics />
+                  <ServiceWorkerManager />
+                </ErrorBoundary>
+              </RpcFallbackBanner>
+            </WalletProvider>
+          </NextIntlClientProvider>
+        </FeatureFlagProvider>
+      </MotionProvider>
+    </div>
   );
 }
+
+// Core Web Vitals (#693): Next.js invokes this for every reported metric.
+export { reportWebVitals } from "../lib/webVitals";

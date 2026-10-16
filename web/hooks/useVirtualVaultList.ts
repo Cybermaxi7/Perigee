@@ -1,5 +1,5 @@
-import { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { type RefObject } from "react";
 
 import {
   DEFAULT_VIRTUAL_HEIGHT,
@@ -18,13 +18,12 @@ import {
  */
 export function useVirtualVaultList(
   count: number,
-  parentRef: RefObject<HTMLDivElement>,
+  parentRef: RefObject<HTMLDivElement | null>,
 ) {
   const rowVirtualizer = useVirtualizer({
     count,
-
     getScrollElement: () => parentRef.current,
-
+    
     /**
      * Initial height estimate used before the element is measured.
      * Kept close to the real value to avoid layout thrash on first render.
@@ -46,7 +45,6 @@ export function useVirtualVaultList(
 
   return {
     rowVirtualizer,
-
     containerHeight: DEFAULT_VIRTUAL_HEIGHT,
   };
 }

@@ -2,8 +2,10 @@
 
 use emergency_guard::EmergencyGuard;
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, String,
+    contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, String, Vec,
 };
+
+mod snapshot;
 
 #[cfg(test)]
 mod test;
@@ -103,7 +105,7 @@ fn require_admin(env: &Env) -> Result<Address, Error> {
 
     let mut approvers: Vec<Address> = Vec::new(env);
     approvers.push_back(admin.clone());
-    EmergencyGuard::authorize(env.clone(), approvers).map_err(|_| Error::Unauthorized)?;
+    EmergencyGuard::check_multi_sig(env, &approvers).map_err(|_| Error::Unauthorized)?;
 
     Ok(admin)
 }
@@ -254,6 +256,11 @@ impl GovernanceContract {
             .instance()
             .get(&DataKey::NextProposalId)
             .unwrap_or(0);
+        
+        // Create a snapshot for this proposal
+        let snapshot_id = snapshot::get_next_snapshot_id(&env);
+        snapshot::set_proposal_snapshot(&env, proposal_id, snapshot_id);
+        
         let proposal = Proposal {
             id: proposal_id,
             creator: admin,
@@ -309,6 +316,17 @@ impl GovernanceContract {
             .get(&DataKey::Receipt(proposal_id, voter))
     }
 
+    /// Casts or adds quadratic votes to a proposal.
+    ///
+    /// # Voting Rules:
+    /// - Caller must be registered as a voter with sufficient voting units.
+    /// - Proposal must be open and the current ledger sequence must not exceed `voting_ends_at`.
+    /// - `credits_to_spend` must be strictly positive (> 0).
+    /// - Cumulative credits spent across multiple votes on the same proposal cannot exceed `voting_units_snapshot`.
+    /// - Direction consistency: A voter cannot accumulate votes on both sides of the same proposal.
+    ///   Once a voter casts their initial vote (either `support = true` or `support = false`), any subsequent
+    ///   vote on that proposal must specify the same `support` side, otherwise `Error::VoteSideMismatch` is returned.
+    /// - Voting power is determined from snapshot taken at proposal creation time to prevent manipulation.
     pub fn cast_vote(
         env: Env,
         proposal_id: u32,
@@ -337,11 +355,15 @@ impl GovernanceContract {
             .storage()
             .persistent()
             .get::<_, VoteReceipt>(&receipt_key)
-            .unwrap_or(VoteReceipt {
-                support,
-                credits_spent: 0,
-                votes_cast: 0,
-                voting_units_snapshot: profile.voting_units,
+            .unwrap_or_else(|| {
+                // On first vote, create snapshot of voter's voting units
+                let voting_units_snapshot = profile.voting_units;
+                VoteReceipt {
+                    support,
+                    credits_spent: 0,
+                    votes_cast: 0,
+                    voting_units_snapshot,
+                }
             });
 
         if receipt.credits_spent > 0 && receipt.support != support {
@@ -383,5 +405,32 @@ impl GovernanceContract {
         env.storage().persistent().set(&receipt_key, &receipt);
 
         Ok(receipt)
+    }
+
+    /// Create a snapshot of voting power for a specific address
+    /// This can be called manually to create snapshots before proposal creation
+    pub fn create_voting_snapshot(
+        env: Env,
+        voter: Address,
+    ) -> Result<snapshot::VotingSnapshot, Error> {
+        let profile: VoterProfile = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Voter(voter.clone()))
+            .ok_or(Error::VoterNotRegistered)?;
+        
+        let snapshot_id = snapshot::get_next_snapshot_id(&env);
+        let snapshot = snapshot::create_voting_snapshot(&env, voter, snapshot_id);
+        
+        Ok(snapshot)
+    }
+
+    /// Get voting power from a snapshot
+    pub fn get_snapshot_voting_power(
+        env: Env,
+        voter: Address,
+        snapshot_id: u64,
+    ) -> Option<i128> {
+        snapshot::read_snapshot_voting_power(&env, voter, snapshot_id)
     }
 }

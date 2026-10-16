@@ -4,15 +4,31 @@ const withNextIntl = createNextIntlPlugin('./lib/i18n.ts');
 
 const nextConfig = {
   reactStrictMode: true,
+  // Gzip responses from the Next server (issue #695). Brotli is applied by the
+  // reverse proxy / CDN, see docs/compression.md.
+  compress: true,
   transpilePackages: ["@creit.tech/stellar-wallets-kit"],
   turbopack: {},
 
   images: {
+    // Modern formats first; Next negotiates AVIF/WebP from the Accept header.
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 20, 32, 48, 64, 96, 128, 256],
+    minimumCacheTTL: 60 * 60 * 24,
     remotePatterns: [
       {
         protocol: "https",
         hostname: "stellar.creit.tech",
       },
+      // IPFS gateways (issue #689)
+      { protocol: "https", hostname: "ipfs.io", pathname: "/ipfs/**" },
+      { protocol: "https", hostname: "cloudflare-ipfs.com", pathname: "/ipfs/**" },
+      { protocol: "https", hostname: "gateway.pinata.cloud", pathname: "/ipfs/**" },
+      // Optional CDN host, e.g. NEXT_PUBLIC_IMAGE_CDN_HOST=cdn.example.com
+      ...(process.env.NEXT_PUBLIC_IMAGE_CDN_HOST
+        ? [{ protocol: "https", hostname: process.env.NEXT_PUBLIC_IMAGE_CDN_HOST }]
+        : []),
     ],
   },
 
@@ -96,6 +112,14 @@ const nextConfig = {
 
   async headers() {
     return [
+      {
+        // The worker script must always revalidate so updates are detected.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
       {
         source: "/:path*.wasm",
         headers: [
